@@ -588,3 +588,16 @@ int * swapIn(unsigned char * pageIn, struct page *pg){
 	mappages(myproc->pgdir, (char*) pg->address, 4096, v2p(physMem), PTE_W | PTE_U);
 	return 0;
 }
+
+int * swapOut(struct page * pg, char *inPg)
+{
+	int fileDest = 0;
+	for(fileDest = 0; fileDest < 15; fileDest ++)
+	{
+		if(myproc()->freeInFile[fileDest] == 0)
+		break;
+	}
+	pg->file_index = fileDest;
+	
+
+}
