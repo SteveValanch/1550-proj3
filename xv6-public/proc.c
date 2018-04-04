@@ -111,7 +111,13 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  
+  if (createSwapFile(p) != 0)
+  {
+    cprintf("Error creating swap file");
+    return 0;
+  }
+  
   return p;
 }
 
@@ -209,6 +215,41 @@ fork(void)
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  
+  //Copy swapFile from the parent process to the child process.
+  char *buffer[4096];
+  
+  int i, lastindex;
+  
+  for(lastindex = 14; lastindex >= 0; lastindex--)
+  {
+    if(curproc->freeInFile[lastindex] == 1)
+    {
+      break;
+    }
+  }
+  
+  for(i = 0; i <= lastindex; i++)
+  {
+    if(readFromSwapFile(curproc, buffer, i*4096, 4096) != 0)
+    {
+      return -1;
+    }
+    
+    if(writeToSwapFile(np, buffer, i*4096, 4096) != 0)
+    {
+      return -1;
+    }
+    
+    if(curproc->freeInFile[i])
+    {
+      np->freeInFile[i] = 1;
+    }
+    else
+    {
+      np->freeInFile[i] = 0;
+    }
+  }
 
   pid = np->pid;
 
