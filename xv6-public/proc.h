@@ -32,6 +32,13 @@ struct context {
   uint eip;
 };
 
+//Page information
+struct page {
+  uint address;       //Virtual address of the page
+  uint file index;    //Offset into the file
+  int swapped;        //1 if in file, 0 if in physical memory
+}
+
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -50,6 +57,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   struct file *swapFile;       // Page/swap file.  Must initiate with createSwapFile.
+  struct page *pages[MAX_PSYC_PAGES];  //Pages within the process  
 };
 
 // Process memory is laid out contiguously, low addresses first:
