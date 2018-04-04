@@ -35,7 +35,7 @@ struct context {
 //Page information
 struct page {
   uint address;       //Virtual address of the page
-  uint file index;    //Offset into the file
+  uint file_index;    //Offset into the file
   int swapped;        //1 if in file, 0 if in physical memory
 }
 
