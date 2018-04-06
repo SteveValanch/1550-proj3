@@ -604,8 +604,8 @@ int * swapOut(struct page * pg, char *inPg)
 	writeToSwapFile(myproc(), buffer, fileDest*4096, 4096);//write the buffer into the file
 	kfree((char *) inPg);//free the memory where the page was
 	//now all the proper fields need to be updated, including the "swapped out" flag in the PTE
-	
-	
-	
-
+	//as well as completing a mapping from 
+	unsigned char *pageVA = (unsigned char *)(myproc()->swapFile + fileDest*4096);
+	mappages(myproc()->pgdir, pg->address, 4096, v2p(pageVA), PTE_W | PTE_U | PTE_PG);
+	return 1;
 }
