@@ -87,7 +87,10 @@ trap(struct trapframe *tf)
       panic("trap");
     }
     // In user space, assume process misbehaved.
-    // Lazy allocation
+      
+  if(tf->trapno == t_PGFLT)//verifying that a page fault has occured
+  {
+    // allocate a page
     char *mem;
     mem = kalloc();//grab a new page worth of memory
     if(mem == 0){
@@ -98,7 +101,8 @@ trap(struct trapframe *tf)
     uint n = PGROUNDDOWN(rcr2());
     mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
     
-return ;
+    return ;
+  }
       
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
