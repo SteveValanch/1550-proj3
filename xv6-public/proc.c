@@ -576,7 +576,7 @@ procdump(void)
 
 int * swapIn(unsigned char * pageIn, struct page *pg){
 	unsigned char * physMem = kalloc();
-	unsigned char *buffer[4098];
+	unsigned char *buffer[4096];
 	readFromSwapfile(myproc(), buffer, pg->file_index*4096,  4096);
 	pg->swapped = 0;
 	pg->file_index = 0;
@@ -591,13 +591,20 @@ int * swapIn(unsigned char * pageIn, struct page *pg){
 
 int * swapOut(struct page * pg, char *inPg)
 {
+	unsigned char* buffer[4096];//buffer to hold the page we will be moving to file
+	memmove((void *) buffer, (void *) inPg, 4096); //move the data from page in memory to buffer
 	int fileDest = 0;
 	for(fileDest = 0; fileDest < 15; fileDest ++)
 	{
-		if(myproc()->freeInFile[fileDest] == 0)
+		if(myproc()->freeInFile[fileDest] == 0)//increment until an available page in the file is found
 		break;
 	}
-	pg->file_index = fileDest;
+	pg->file_index = fileDest;//mark the destination index of the file
+	writeToSwapFile(myproc(), buffer, fileDest*4096, 4096);//write the buffer into the file
+	kfree((char *) inPg);//free the memory where the page was
+	//now all the proper fields need to be updated, including the "swapped out" flag in the PTE
+	
+	
 	
 
 }
