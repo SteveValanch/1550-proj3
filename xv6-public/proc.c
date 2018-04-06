@@ -600,6 +600,7 @@ int * swapOut(struct page * pg, char *inPg)
 		break;
 	}
 	pg->file_index = fileDest;//mark the destination index of the file
+	pg->swapped = 1;
 	writeToSwapFile(myproc(), buffer, fileDest*4096, 4096);//write the buffer into the file
 	kfree((char *) inPg);//free the memory where the page was
 	//now all the proper fields need to be updated, including the "swapped out" flag in the PTE
