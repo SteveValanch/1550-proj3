@@ -87,6 +87,19 @@ trap(struct trapframe *tf)
       panic("trap");
     }
     // In user space, assume process misbehaved.
+    // Lazy allocation
+    char *mem;
+    mem = kalloc();//grab a new page worth of memory
+    if(mem == 0){
+        cprintf("lazyalloc out of memory\n");
+        return;
+    }
+    memset(mem, 0, PGSIZE);//
+    uint n = PGROUNDDOWN(rcr2());
+    mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
+    
+return ;
+      
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
             myproc()->pid, myproc()->name, tf->trapno,
