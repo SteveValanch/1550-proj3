@@ -37,7 +37,7 @@ struct context {
 struct page {
   uint address;       //Virtual address of the page
   uint file_index;    //Offset into the file
-  int swapped;        //1 if in file, 0 if in physical memory
+  int swapped = -1;   //1 if in file, 0 if in physical memory, -1 if uninitialized
 }
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
