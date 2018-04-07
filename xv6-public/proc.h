@@ -1,3 +1,4 @@
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -59,6 +60,8 @@ struct proc {
   struct file *swapFile;       // Page/swap file.  Must initiate with createSwapFile.
   struct page *pages[MAX_TOTAL_PAGES];  //Pages within the process
   int freeInFile[15];          //1 if page in file, 0 if free
+  int SwapIndex;               //this SwapIndex int stores the file index last paged in, for removal
+  int numInFile;               //under our simple test paging strategy which will be lifo
 };
 
 // Process memory is laid out contiguously, low addresses first:
