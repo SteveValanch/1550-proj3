@@ -607,5 +607,6 @@ int * swapOut(struct page * pg, char *inPg)
 	//as well as completing a mapping from 
 	unsigned char *pageVA = (unsigned char *)(myproc()->swapFile + fileDest*4096);
 	mappages(myproc()->pgdir, pg->address, 4096, v2p(pageVA), PTE_W | PTE_U | PTE_PG);
+	lcr3(PADDR(p->pgdir));
 	return 1;
 }
