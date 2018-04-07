@@ -89,20 +89,51 @@ trap(struct trapframe *tf)
     // In user space, assume process misbehaved.
       
   if(tf->trapno == t_PGFLT)//verifying that a page fault has occured
-  {
-    // allocate a page
-    char *mem;
-    mem = kalloc();//grab a new page worth of memory
-    if(mem == 0){
+  {//crossroads of 2x2 options: a process cant find its page: if the 
+    //page is not in the file, there has been no allocation done.
+    //if no allocation done, and below the limit of 15 pages in memory,
+    //simply allocate and return as normal. otherwise if at 15 page limit
+    //amd not allocated, swap a victim page into file, clear page, and return
+    //reference to cleared page. if page IS in file and below 15 page limit,
+    //copy the file into a free slot in memory. finally if at 15 page limit,
+    //exchange file page for a victim memory page. 
+    uint faultingAddress = rcr2();
+    pte_t *pte;
+    char * mem;
+    //case 1: unallocated, <15 pages in memory: we know this is the case because 
+    //there is no page struct with a matching address. response is to allocate
+    //and return
+    if((pte = walkpgdir(myproc()->pgdir, (char *)faultingAddress, 0))==0)//in this case no entry so allocate
+    {
+      if(myproc()->pgCtMem ==15)//memory full so must swap with file
+      {
+        //ADD METHOD 
+      }
+      else{//else allocate the space and map it
+        mem = kalloc();
+        if(mem == 0){
         cprintf("lazyalloc out of memory\n");
-        return;
+        return;//return if kalloc unsuccessful
+        }
+        memset(mem, 0, PGSIZE);//
+        uint n = PGROUNDDOWN(rcr2());
+        mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
+        //now add a page struct for this page, and update the proc statistics
+        int i = 0;
+        for(i = 0; i < 15; i++)//increment through array to find unused page struct
+        {
+          if(myProc()->pages[i]->swapped == -1)//found one at index i
+          {
+            myProc()->pages[i]->swapped = 0;
+            myProc()->pages[i]->address = mem;
+            myProc()->freeInFile[i] = 0;
+            myProc()->pageCtMem++;
+          }  
+        }  
+        return ;
     }
-    memset(mem, 0, PGSIZE);//
-    uint n = PGROUNDDOWN(rcr2());
-    mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
-    
-    return ;
-  }
+    //this far means the page has been created, so pagefault indicates it is in file
+    //not in memory. Here, should call a method to determine an appropriate file to swap
       
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
