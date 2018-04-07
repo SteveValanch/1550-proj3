@@ -608,5 +608,12 @@ int * swapOut(struct page * pg, char *inPg)
 	unsigned char *pageVA = (unsigned char *)(myproc()->swapFile + fileDest*4096);
 	mappages(myproc()->pgdir, pg->address, 4096, v2p(pageVA), PTE_W | PTE_U | PTE_PG);
 	lcr3(PADDR(p->pgdir));
+	//adjust the pte to reflect PTE_P = 0
+	char *a;
+	pte_t *pte;
+	a = (char*)PGROUNDDOWN((uint)pageVA);
+	if((pte = walkpgdir(myproc()->pgdir, a, 0) == 0)
+	   return -1;
+	*pte = *pte & !PTE_P;//the intended effect is to use NOT(PTE_P) as a mask to zero out that bit
 	return 1;
 }
