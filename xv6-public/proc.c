@@ -296,7 +296,16 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
-
+  int i = 0;
+  for(i = 0; i < 30; i++)
+  {
+    if(curproc->pages[i]->swapped == 0)
+    {
+	kfree((char *)curproc->pages[i]->address);    
+    }
+  }
+  removeSwapFile(curproc);
+	
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
