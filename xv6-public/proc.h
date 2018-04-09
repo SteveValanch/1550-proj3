@@ -38,7 +38,7 @@ struct page {
   uint address;       //Virtual address of the page
   uint file_index;    //Offset into the file
   int swapped = -1;   //1 if in file, 0 if in physical memory, -1 if uninitialized
-}
+};
 
 #if (SELECTION!=FIFO) && (SELECTION!=RAND) 
 struct node {
@@ -46,7 +46,7 @@ struct node {
   struct node *previousNode;  //Node above in the stack.
   struct page *page;  //Page structure of that node.
   int inuse;  //0 if not in use, 1 if in use.
-}
+};
 #endif
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
