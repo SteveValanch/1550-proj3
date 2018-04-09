@@ -583,17 +583,11 @@ procdump(void)
   }
 }
 
-int * swapIn(unsigned char * pageIn, struct page *pg){
+int * swapIn(struct page *pg){
 	unsigned char * physMem = kalloc();
-	unsigned char *buffer[4096];
-	readFromSwapfile(myproc(), buffer, pg->file_index*4096,  4096);
+	readFromSwapfile(myproc(), physMem, pg->file_index*4096,  4096);
 	pg->swapped = 0;
 	pg->file_index = 0;
-	int i = 0;
-	for(i = 0; i < 4096; i++)
-	{
-		physMem[i] = buffer[i];
-	}
 	mappages(myproc->pgdir, (char*) pg->address, 4096, v2p(physMem), PTE_W | PTE_U);
 	return 0;
 }
