@@ -40,12 +40,14 @@ struct page {
   int swapped = -1;   //1 if in file, 0 if in physical memory, -1 if uninitialized
 }
 
+#if (SELECTION!=FIFO) && (SELECTION!=RAND) 
 struct node {
   struct node *nextNode;
   struct node *previousNode;
   struct page *page;
   int inuse;
 }
+#endif
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
