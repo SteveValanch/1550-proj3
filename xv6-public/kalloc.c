@@ -74,6 +74,7 @@ kfree(char *v)
   kmem.freelist = r;
   if(kmem.use_lock)
     release(&kmem.lock);
+  myproc()->pageCtTotal--;
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -91,6 +92,7 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+  myproc()->pageCtTotal++;
   return (char*)r;
 }
 
