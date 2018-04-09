@@ -118,10 +118,10 @@ trap(struct trapframe *tf)
         #if SELECTION=FIFO    
         victim = queue[0];  //Remove the first item in the queue.
         
-        int i;
-        for (i = 0; i < 14; i++)  //Shift the entire queue by one space to the left.
+        int index;
+        for (index = 0; index < 14; index++)  //Shift the entire queue by one space to the left.
         {
-          queue[i] = queue[i+1];
+          queue[index] = queue[index+1];
         }
         #elif SELECTION=RAND
         int replaceindex;  //Index of page to swap out.
@@ -161,12 +161,36 @@ trap(struct trapframe *tf)
             myProc()->pages[i]->address = mem;
             myProc()->freeInFile[i] = 0;
             myProc()->pageCtMem++;
+            
+            break;
           }  
         }  
         
         //Add myProc()->pages[i] to data structure.
+        #if SELECTION=FIFO    
+        queue[14] = myProc()->pages[i];  //Add myProc()->pages[i] to the end of the queue.
+        #elif SELECTION=RAND
+        randpages[replaceindex] = myProc()->pages[i];  //Add myProc()->pages[i] to randpages[replaceindex].
+        #else
+        int index;
         
-        //ADD METHOD 
+        for (index = 0; index < 15; index++)  //Look for a node in use.
+        {
+          if(myProc()->stack[index]->inuse == 0)
+          {
+            break;
+          }
+        }
+        
+        struct node *newNode;
+        newNode = myProc()->stack[index];
+        newNode->nextNode = myProc()->head;  //Add the new node to the top of the stack.
+        newNode->previousNode = NULL;
+        newNode->page = myProc()->pages[i];  //Add myProc()->pages[i] to the new node.
+        newNode->inuse = 1;
+        myProc()->head = newNode;  //Make the new node the head.
+        #endif
+      
         return;
       }
       else{//else allocate the space and map it
@@ -188,6 +212,8 @@ trap(struct trapframe *tf)
             myProc()->pages[i]->address = mem;
             myProc()->freeInFile[i] = 0;
             myProc()->pageCtMem++;
+            
+            break;
           }  
         }  
         return ;
