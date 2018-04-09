@@ -14,6 +14,11 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+#if SELECTION=FIFO
+unsigned long randstate = 1;
+#endif
+
+
 void
 tvinit(void)
 {
@@ -107,7 +112,62 @@ trap(struct trapframe *tf)
     {
       if(myproc()->pgCtMem ==15)//memory full so must swap with file
       {
+        struct page *victim;
+        
+        //Select a victim using a page replacement algorithm.
+        #if SELECTION=FIFO    
+        victim = queue[0];  //Remove the first item in the queue.
+        
+        int i;
+        for (i = 0; i < 14; i++)  //Shift the entire queue by one space to the left.
+        {
+          queue[i] = queue[i+1];
+        }
+        #elif SELECTION=RAND
+        int replaceindex;  //Index of page to swap out.
+        
+        randstate = randstate * 1664525 + 1013904223;  
+        replaceindex = randstate % 15  //Generate a random number between 0 and 14.
+        victim = randpages[replaceindex];
+        #else
+        victim = myProc()->tail->page;  //Remove the item on the bottom of the stack.
+        myProc()->tail->inuse = 0;  //Remove the node from the stack.
+        myProc()->tail = myProc()->tail->previousNode;  //The new tail is the next item on the bottom of the stack.
+        myProc()->tail->nextNode = NULL;
+        #endif
+        
+        swapOut(victim, char *inPg);
+        
+        mem = kalloc();
+        
+        if(mem == 0){
+        cprintf("lazyalloc out of memory\n");
+        return;//return if kalloc unsuccessful
+        }
+        
+        memset(mem, 0, PGSIZE);
+        
+        uint n = PGROUNDDOWN(rcr2());
+        
+        mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
+        
+        //now add a page struct for this page, and update the proc statistics
+        int i = 0;
+        for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
+        {
+          if(myProc()->pages[i]->swapped == -1)//found one at index i
+          {
+            myProc()->pages[i]->swapped = 0;
+            myProc()->pages[i]->address = mem;
+            myProc()->freeInFile[i] = 0;
+            myProc()->pageCtMem++;
+          }  
+        }  
+        
+        //Add myProc()->pages[i] to data structure.
+        
         //ADD METHOD 
+        return;
       }
       else{//else allocate the space and map it
         mem = kalloc();
@@ -120,7 +180,7 @@ trap(struct trapframe *tf)
         mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         //now add a page struct for this page, and update the proc statistics
         int i = 0;
-        for(i = 0; i < 15; i++)//increment through array to find unused page struct
+        for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
         {
           if(myProc()->pages[i]->swapped == -1)//found one at index i
           {
