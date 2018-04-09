@@ -40,6 +40,13 @@ struct page {
   int swapped = -1;   //1 if in file, 0 if in physical memory, -1 if uninitialized
 }
 
+struct node {
+  struct node *nextNode;
+  struct node *previousNode;
+  struct page *page;
+  int inuse;
+}
+
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -62,6 +69,7 @@ struct proc {
   int freeInFile[15];          //1 if page in file, 0 if free
   int SwapIndex;               //this SwapIndex int stores the file index last paged in, for removal
   int pageCtMem;               //under our simple test paging strategy which will be lifo
+  int pageCtFile;              //Number of pages in the swap file
   
   //Select which page replacement algorithm to use.
   #if SELECTION=FIFO  //First in First Out
@@ -69,7 +77,9 @@ struct proc {
   #elif SELECTION=RAND  //Random
   struct page *pages;  //Array of pages to be randomly selected.
   #else  //Least Recently Used
-  struct nodes *stack[15];  //Array of nodes that represent a stack.
+  struct node *stack[15];  //Array of nodes that represent a stack.
+  struct node head;  //Head of the linked list and the top of the stack.
+  struct node tail;  //Tail of the linked list and the bottom of the stack.
   #endif
 };
 
