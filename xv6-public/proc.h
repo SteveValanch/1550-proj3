@@ -62,6 +62,15 @@ struct proc {
   int freeInFile[15];          //1 if page in file, 0 if free
   int SwapIndex;               //this SwapIndex int stores the file index last paged in, for removal
   int pageCtMem;               //under our simple test paging strategy which will be lifo
+  
+  //Select which page replacement algorithm to use.
+  #if SELECTION=FIFO  //First in First Out
+  struct page *queue[15];  //Queue of pages to swap out.
+  #elif SELECTION=RAND  //Random
+  struct page *pages;  //Array of pages to be randomly selected.
+  #else  //Least Recently Used
+  struct nodes *stack[15];  //Array of nodes that represent a stack.
+  #endif
 };
 
 // Process memory is laid out contiguously, low addresses first:
