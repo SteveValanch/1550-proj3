@@ -592,10 +592,8 @@ int * swapIn(struct page *pg){
 	return 0;
 }
 
-int * swapOut(struct page * pg, char *inPg)
+int * swapOut(struct page * pg)
 {
-	unsigned char* buffer[4096];//buffer to hold the page we will be moving to file
-	memmove((void *) buffer, (void *) inPg, 4096); //move the data from page in memory to buffer
 	int fileDest = 0;
 	for(fileDest = 0; fileDest < 15; fileDest ++)
 	{
@@ -604,19 +602,8 @@ int * swapOut(struct page * pg, char *inPg)
 	}
 	pg->file_index = fileDest;//mark the destination index of the file
 	pg->swapped = 1;
-	writeToSwapFile(myproc(), buffer, fileDest*4096, 4096);//write the buffer into the file
-	kfree((char *) inPg);//free the memory where the page was
-	//now all the proper fields need to be updated, including the "swapped out" flag in the PTE
-	//as well as completing a mapping from 
-	unsigned char *pageVA = (unsigned char *)(myproc()->swapFile + fileDest*4096);
-	mappages(myproc()->pgdir, pg->address, 4096, v2p(pageVA), PTE_W | PTE_U | PTE_PG);
-	lcr3(PADDR(p->pgdir));
-	//adjust the pte to reflect PTE_P = 0
-	char *a;
-	pte_t *pte;
-	a = (char*)PGROUNDDOWN((uint)pageVA);
-	if((pte = walkpgdir(myproc()->pgdir, a, 0) == 0)
-	   return -1;
-	*pte = *pte & !PTE_P;//the intended effect is to use NOT(PTE_P) as a mask to zero out that bit
-	return 1;
+	writeToSwapFile(myproc(), v2p(pg->address), fileDest*4096, 4096);//write the buffer into the file
+	kfree(pg->address);
+	pte_t *pte = walkpgdir(myProc()->pgdir, pg->address, 0);
+	*pte = *pte & !PTE_P & PTE_PG;
 }
