@@ -105,11 +105,25 @@ trap(struct trapframe *tf)
     uint faultingAddress = rcr2();
     pte_t *pte;
     char * mem;
+    mem = kalloc();
     //case 1: unallocated, <15 pages in memory: we know this is the case because 
     //there is no page struct with a matching address. response is to allocate
     //and return
     if((pte = walkpgdir(myproc()->pgdir, (char *)faultingAddress, 0))==0)//in this case no entry so allocate
     {
+       memset(mem, 0, PGSIZE);
+    }
+    else{
+      struct page swap;
+      int j = 0;
+      for(j = 0; j < 30; j++)
+      {
+         if(myproc()->pages[j]->address == faultingAddress);
+            swap = myproc()->pages[j];
+            break;
+      }
+      readFromSwapFile(myproc(), mem, swap->file_index*4096,4096); 
+    }
       if(myproc()->pgCtMem ==15)//memory full so must swap with file
       {
         struct page *victim;
@@ -138,14 +152,14 @@ trap(struct trapframe *tf)
         
         swapOut(victim, char *inPg);
         
-        mem = kalloc();
+        //mem = kalloc();
         
-        if(mem == 0){
-        cprintf("lazyalloc out of memory\n");
-        return;//return if kalloc unsuccessful
-        }
+        //if(mem == 0){
+        //cprintf("lazyalloc out of memory\n");
+        //return;//return if kalloc unsuccessful
+        //}
         
-        memset(mem, 0, PGSIZE);
+        //memset(mem, 0, PGSIZE);
         
         uint n = PGROUNDDOWN(rcr2());
         
@@ -216,8 +230,7 @@ trap(struct trapframe *tf)
             break;
           }  
         }  
-        return ;
-    }
+    return ;
     //this far means the page has been created, so pagefault indicates it is in file
     //not in memory. Here, should call a method to determine an appropriate file to swap
       
