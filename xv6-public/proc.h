@@ -74,14 +74,14 @@ struct proc {
   int pageCtFile;              //Number of pages in the swap file
   
   //Select which page replacement algorithm to use.
-  #if SELECTION=FIFO  //First in First Out
+  #if SELECTION==FIFO  //First in First Out
   struct page *queue[15];  //Queue of pages to swap out.
-  #elif SELECTION=RAND  //Random
+  #elif SELECTION==RAND  //Random
   struct page *randpages[15];  //Array of pages to be randomly selected.
   #else  //Least Recently Used
   struct node *stack[15];  //Array of nodes that represent a stack.
-  struct node head;  //Head of the linked list and the top of the stack.
-  struct node tail;  //Tail of the linked list and the bottom of the stack.
+  struct node *head;  //Head of the linked list and the top of the stack.
+  struct node *tail;  //Tail of the linked list and the bottom of the stack.
   #endif
 };
 
