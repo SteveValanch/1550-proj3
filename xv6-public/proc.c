@@ -250,6 +250,15 @@ fork(void)
       np->freeInFile[i] = 0;
     }
   }
+	
+  for(i = 0; i < 30; i++)
+  {
+    np->pages[i]->address = curproc->pages[i]->address;
+    np->pages[i]->file_index = curproc->pages[i]->address;
+    np->pages[i]->swapped = curproc->pages[i]->swapped;
+  }
+  
+  np->pageCtMem = curproc->pageCtMem;
 
   pid = np->pid;
 
