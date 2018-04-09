@@ -107,6 +107,7 @@ trap(struct trapframe *tf)
     {
       if(myproc()->pgCtMem ==15)//memory full so must swap with file
       {
+        myProc()->pageCtTotal++;
         //ADD METHOD 
       }
       else{//else allocate the space and map it
@@ -128,9 +129,14 @@ trap(struct trapframe *tf)
             myProc()->pages[i]->address = mem;
             myProc()->freeInFile[i] = 0;
             myProc()->pageCtMem++;
+            myProc()->pageCtTotal++;
           }  
         }  
         return ;
+    }
+    else
+    {
+       if( 
     }
     //this far means the page has been created, so pagefault indicates it is in file
     //not in memory. Here, should call a method to determine an appropriate file to swap
