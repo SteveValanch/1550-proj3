@@ -42,10 +42,10 @@ struct page {
 
 #if (SELECTION!=FIFO) && (SELECTION!=RAND) 
 struct node {
-  struct node *nextNode;
-  struct node *previousNode;
-  struct page *page;
-  int inuse;
+  struct node *nextNode;  //Node below in the stack.
+  struct node *previousNode;  //Node above in the stack.
+  struct page *page;  //Page structure of that node.
+  int inuse;  //0 if not in use, 1 if in use.
 }
 #endif
 
