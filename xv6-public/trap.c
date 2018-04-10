@@ -59,6 +59,54 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
+    
+  #if (SELECTION!=FIFO) && (SELECTION!=RAND) 
+  struct proc* p = myproc();
+  pte_t *pte;
+  int i;
+  for(i = 0; i < 15; i++)
+  {
+    if (stack[i]->inuse)
+    {
+      pte = walkpgdir(p->pgdir, stack[i]->page->address, 0);
+
+      if (*pte & PTE_A)  //check PTE_A
+      {
+        //Put the node on top of the stack.
+        struct node curr, next, previous;
+        curr = stack[i];
+
+        if ((curr->previousNode != NULL) || (curr->nextNode != NULL))
+        {
+          if ((curr->previousNode != NULL) && (curr->nextNode != NULL))  //Move the node to the top of the stack.
+          {
+            previous = curr->previousNode;
+            next = curr->nextNode;
+            previous->nextNode = next;
+            next->previousNode = previous;
+            curr->previousNode = NULL;
+            curr->nextNode = p->head;
+            p->head->previousNode = curr;
+            p->head = curr;
+          }
+          else if (curr->nextNode == NULL)  //Move the bottom node to the top of the stack.
+          {
+            previous = curr->previousNode;
+            previous->nextNode = NULL;
+            curr->previousNode = NULL;
+            curr->nextNode = p->head;
+            p->head->previousNode = curr;
+            p->head = curr;
+          }
+        }
+      }
+      
+      *pte &= ~PTE_A; //reset PTE_A
+      
+    }
+  }
+  #endif
+      
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
@@ -188,7 +236,7 @@ trap(struct trapframe *tf)
         #else
         int index;
         
-        for (index = 0; index < 15; index++)  //Look for a node in use.
+        for (index = 0; index < 15; index++)  //Look for a node that is not in use.
         {
           if(myProc()->stack[index]->inuse == 0)
           {
@@ -202,18 +250,19 @@ trap(struct trapframe *tf)
         newNode->previousNode = NULL;
         newNode->page = myProc()->pages[i];  //Add myProc()->pages[i] to the new node.
         newNode->inuse = 1;
+        myProc()->head->previousNode = newNode;
         myProc()->head = newNode;  //Make the new node the head.
         #endif
       
         return;
       }
       else{//else allocate the space and map it
-        mem = kalloc();
+       /* mem = kalloc();
         if(mem == 0){
         cprintf("lazyalloc out of memory\n");
         return;//return if kalloc unsuccessful
         }
-        memset(mem, 0, PGSIZE);//
+        memset(mem, 0, PGSIZE);*/
         uint n = PGROUNDDOWN(rcr2());
         mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         //now add a page struct for this page, and update the proc statistics
@@ -228,7 +277,27 @@ trap(struct trapframe *tf)
             myProc()->pageCtMem++;
             
             break;
-          }  
+          }
+          
+        //Add myProc()->pages[i] to data structure.
+        #if SELECTION=FIFO    
+        queue[myProc()->size] = myProc()->pages[i];  //Add myProc()->pages[i] to the end of the queue.
+        myProc()->size++;
+        #elif SELECTION=RAND
+        randpages[myProc()->size] = myProc()->pages[i];  //Add myProc()->pages[i] to randpages[replaceindex].
+        myProc()->size++;
+        #else
+        struct node *newNode;
+        newNode = myProc()->stack[size];
+        newNode->nextNode = myProc()->head;  //Add the new node to the top of the stack.
+        newNode->previousNode = NULL;
+        newNode->page = myProc()->pages[i];  //Add myProc()->pages[i] to the new node.
+        newNode->inuse = 1;
+        myProc()->head->previousNode = newNode;
+        myProc()->head = newNode;  //Make the new node the head.
+        size++
+        #endif
+          
         }  
     return ;
     //this far means the page has been created, so pagefault indicates it is in file
