@@ -149,10 +149,10 @@ trap(struct trapframe *tf)
     //amd not allocated, swap a victim page into file, clear page, and return
     //reference to cleared page. if page IS in file and below 15 page limit,
     //copy the file into a free slot in memory. finally if at 15 page limit,
-    //exchange file page for a victim memory page. 
+    //exchange file page for a victim memory page.
+    uint faultingAddress = rcr2();
     if(myproc()->pageCtTotal >= MAX_TOTAL_PAGES)
       kill(myproc()->pid);
-    uint faultingAddress = rcr2();
     pte_t *pte;
     char * mem;
     mem = kalloc();
@@ -211,7 +211,7 @@ trap(struct trapframe *tf)
         
         //memset(mem, 0, PGSIZE);
         
-        uint n = PGROUNDDOWN(rcr2());
+        uint n = PGROUNDDOWN(faultingAddress);
         
         mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         
@@ -265,7 +265,7 @@ trap(struct trapframe *tf)
         return;//return if kalloc unsuccessful
         }
         memset(mem, 0, PGSIZE);*/
-        uint n = PGROUNDDOWN(rcr2());
+        uint n = PGROUNDDOWN(faultingAddress);
         mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         //now add a page struct for this page, and update the proc statistics
         int i = 0;
@@ -308,7 +308,7 @@ trap(struct trapframe *tf)
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
             myproc()->pid, myproc()->name, tf->trapno,
-            tf->err, cpuid(), tf->eip, rcr2());
+            tf->err, cpuid(), tf->eip, faultingAddress);
     myproc()->killed = 1;
   }
 
