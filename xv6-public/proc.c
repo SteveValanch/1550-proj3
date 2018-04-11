@@ -259,7 +259,7 @@ fork(void)
   }
   
   np->pageCtTotal = curproc->pageCtTotal;
-  np->pageCtMem = curproc->pageCtMem;
+  np->pageCtFile = curproc->pageCtFile;
 
   pid = np->pid;
 
@@ -593,16 +593,17 @@ procdump(void)
   }
 }
 
-int * swapIn(struct page *pg){
+int * swapIn(struct page *pg){//swaps INTO physical
 	unsigned char * physMem = kalloc();
 	readFromSwapfile(myproc(), physMem, pg->file_index*4096,  4096);
+	myproc()->freeInFile[pg->file_index] = 0;
 	pg->swapped = 0;
 	pg->file_index = 0;
-	mappages(myproc->pgdir, (char*) pg->address, 4096, v2p(physMem), PTE_W | PTE_U);
+	mappages((pde_t *)myproc()->pgdir, (char*) pg->address, 4096, v2p(physMem), PTE_W | PTE_U);
 	return 0;
 }
 
-int * swapOut(struct page * pg)
+int * swapOut(struct page * pg)//swaps OUT of physical
 {
 	int fileDest = 0;
 	for(fileDest = 0; fileDest < 15; fileDest ++)
@@ -611,9 +612,10 @@ int * swapOut(struct page * pg)
 		break;
 	}
 	pg->file_index = fileDest;//mark the destination index of the file
+	myProc->freeInFile[fileDest] = 1;
 	pg->swapped = 1;
-	writeToSwapFile(myproc(), v2p(pg->address), fileDest*4096, 4096);//write the buffer into the file
+	writeToSwapFile(myproc(), pg->address, fileDest*4096, 4096);//write the buffer into the file
 	kfree((char *)pg->address);
-	pte_t *pte = walkpgdir(myProc()->pgdir, pg->address, 0);
+	pte_t *pte = walkpgdir((pde_t *)myProc()->pgdir, pg->address, 0);
 	*pte = *pte & !PTE_P & PTE_PG;
 }
