@@ -219,7 +219,7 @@ fork(void)
   //Copy swapFile from the parent process to the child process.
   char *buffer[4096];
   
-  int i, lastindex;
+  int lastindex;
   
   for(lastindex = 14; lastindex >= 0; lastindex--)
   {
@@ -258,6 +258,7 @@ fork(void)
     np->pages[i]->swapped = curproc->pages[i]->swapped;
   }
   
+  np->pageCtTotal = curproc->pageCtTotal;
   np->pageCtMem = curproc->pageCtMem;
 
   pid = np->pid;
@@ -612,7 +613,7 @@ int * swapOut(struct page * pg)
 	pg->file_index = fileDest;//mark the destination index of the file
 	pg->swapped = 1;
 	writeToSwapFile(myproc(), v2p(pg->address), fileDest*4096, 4096);//write the buffer into the file
-	kfree(pg->address);
+	kfree((char *)pg->address);
 	pte_t *pte = walkpgdir(myProc()->pgdir, pg->address, 0);
 	*pte = *pte & !PTE_P & PTE_PG;
 }
