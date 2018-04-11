@@ -72,6 +72,10 @@ QEMU = $(shell if which qemu > /dev/null; \
 endif
 
 -d $(SELECTION)
+ifndef SELECTION
+	SELECTION = LRU
+endif
+
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
