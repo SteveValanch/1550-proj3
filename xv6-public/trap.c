@@ -150,6 +150,8 @@ trap(struct trapframe *tf)
     //reference to cleared page. if page IS in file and below 15 page limit,
     //copy the file into a free slot in memory. finally if at 15 page limit,
     //exchange file page for a victim memory page. 
+    if(myproc()->pageCtTotal >= MAX_TOTAL_PAGES)
+      kill(myproc()->pid);
     uint faultingAddress = rcr2();
     pte_t *pte;
     char * mem;
