@@ -51,6 +51,10 @@ trap(struct trapframe *tf)
     return;
   }
 
+    uint faultingAddress = rcr2();
+    struct proc* p = myproc();
+    pte_t * pte;
+
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
@@ -61,8 +65,8 @@ trap(struct trapframe *tf)
     }
     
   #ifdef LRU
-  struct proc* p = myproc();
-  pte_t *pte;
+  //struct proc* p = myproc();
+  //pte_t *pte;
   int i;
   for(i = 0; i < 15; i++)
   {
@@ -131,18 +135,11 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
 
-  //PAGEBREAK: 13
-  default:
-    if(myproc() == 0 || (tf->cs&3) == 0){
-      // In kernel, it must be our mistake.
-      cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
-              tf->trapno, cpuid(), tf->eip, rcr2());
-      panic("trap");
-    }
+  
     // In user space, assume process misbehaved.
       
-  if(tf->trapno == T_PGFLT)//verifying that a page fault has occured
-  {//crossroads of 2x2 options: a process cant find its page: if the 
+  case T_PGFLT://verifying that a page fault has occured
+   //crossroads of 2x2 options: a process cant find its page: if the 
     //page is not in the file, there has been no allocation done.
     //if no allocation done, and below the limit of 15 pages in memory,
     //simply allocate and return as normal. otherwise if at 15 page limit
@@ -150,12 +147,10 @@ trap(struct trapframe *tf)
     //reference to cleared page. if page IS in file and below 15 page limit,
     //copy the file into a free slot in memory. finally if at 15 page limit,
     //exchange file page for a victim memory page. 
-    uint faultingAddress = rcr2();
-	struct proc* p = myproc();
 
     if(p->pageCtTotal >= MAX_TOTAL_PAGES)
       kill(p->pid);
-    pte_t *pte;
+    //pte_t *pte;
     char * mem;
     mem = kalloc();
     //case 1: unallocated, <15 pages in memory: we know this is the case because 
@@ -308,12 +303,19 @@ trap(struct trapframe *tf)
         p->head = newNode;  //Make the new node the head.
         p->size++;
         #endif
-          
-        }  
-    return ;
+           
+    break;
     //this far means the page has been created, so pagefault indicates it is in file
     //not in memory. Here, should call a method to determine an appropriate file to swap
-      
+
+  //PAGEBREAK: 13
+  default:
+    if(myproc() == 0 || (tf->cs&3) == 0){
+      // In kernel, it must be our mistake.
+      cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
+              tf->trapno, cpuid(), tf->eip, rcr2());
+      panic("trap");
+    }
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
             myproc()->pid, myproc()->name, tf->trapno,
