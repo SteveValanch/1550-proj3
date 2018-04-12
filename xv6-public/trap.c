@@ -14,7 +14,7 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
-#if SELECTION=FIFO
+#ifdef RAND
 unsigned long randstate = 1;
 #endif
 
@@ -60,40 +60,40 @@ trap(struct trapframe *tf)
       release(&tickslock);
     }
     
-  #if (SELECTION!=FIFO) && (SELECTION!=RAND) 
+  #ifdef LRU
   struct proc* p = myproc();
   pte_t *pte;
   int i;
   for(i = 0; i < 15; i++)
   {
-    if (stack[i]->inuse)
+    if (p->stack[i]->inuse)
     {
-      pte = walkpgdir(p->pgdir, stack[i]->page->address, 0);
+      pte = walkpgdir(p->pgdir, (char *)p->stack[i]->page->address, 0);
 
       if (*pte & PTE_A)  //check PTE_A
       {
         //Put the node on top of the stack.
-        struct node curr, next, previous;
-        curr = stack[i];
+        struct node * curr, * next, * previous;
+        curr = p->stack[i];
 
-        if ((curr->previousNode != NULL) || (curr->nextNode != NULL))
+        if ((curr->previousNode != 0) || (curr->nextNode != 0))
         {
-          if ((curr->previousNode != NULL) && (curr->nextNode != NULL))  //Move the node to the top of the stack.
+          if ((curr->previousNode != 0) && (curr->nextNode != 0))  //Move the node to the top of the stack.
           {
             previous = curr->previousNode;
             next = curr->nextNode;
             previous->nextNode = next;
             next->previousNode = previous;
-            curr->previousNode = NULL;
+            curr->previousNode = 0;
             curr->nextNode = p->head;
             p->head->previousNode = curr;
             p->head = curr;
           }
-          else if (curr->nextNode == NULL)  //Move the bottom node to the top of the stack.
+          else if (curr->nextNode == 0)  //Move the bottom node to the top of the stack.
           {
             previous = curr->previousNode;
-            previous->nextNode = NULL;
-            curr->previousNode = NULL;
+            previous->nextNode = 0;
+            curr->previousNode = 0;
             curr->nextNode = p->head;
             p->head->previousNode = curr;
             p->head = curr;
@@ -141,7 +141,7 @@ trap(struct trapframe *tf)
     }
     // In user space, assume process misbehaved.
       
-  if(tf->trapno == t_PGFLT)//verifying that a page fault has occured
+  if(tf->trapno == T_PGFLT)//verifying that a page fault has occured
   {//crossroads of 2x2 options: a process cant find its page: if the 
     //page is not in the file, there has been no allocation done.
     //if no allocation done, and below the limit of 15 pages in memory,
@@ -149,37 +149,39 @@ trap(struct trapframe *tf)
     //amd not allocated, swap a victim page into file, clear page, and return
     //reference to cleared page. if page IS in file and below 15 page limit,
     //copy the file into a free slot in memory. finally if at 15 page limit,
-    //exchange file page for a victim memory page.
+    //exchange file page for a victim memory page. 
     uint faultingAddress = rcr2();
-    if(myproc()->pageCtTotal >= MAX_TOTAL_PAGES)
-      kill(myproc()->pid);
+	struct proc* p = myproc();
+
+    if(p->pageCtTotal >= MAX_TOTAL_PAGES)
+      kill(p->pid);
     pte_t *pte;
     char * mem;
     mem = kalloc();
     //case 1: unallocated, <15 pages in memory: we know this is the case because 
     //there is no page struct with a matching address. response is to allocate
     //and return
-    if((pte = walkpgdir(myproc()->pgdir, (char *)faultingAddress, 0))==0)//in this case no entry so allocate
+    if((pte = walkpgdir(p->pgdir, (char *)faultingAddress, 0))==0)//in this case no entry so allocate
     {
        memset(mem, 0, PGSIZE);
     }
     else{
-      struct page swap;
+      struct page * swap;
       int j = 0;
       for(j = 0; j < 30; j++)
       {
-         if(myproc()->pages[j]->address == faultingAddress);
-            swap = myproc()->pages[j];
+         if(p->pages[j]->address == faultingAddress);
+            swap = p->pages[j];
             break;
       }
-      readFromSwapFile(myproc(), mem, swap->file_index*4096,4096); 
+      readFromSwapFile(p, mem, swap->file_index*4096,4096); 
     }
-      if(myproc()->pgCtMem ==15)//memory full so must swap with file
+      if(p->pageCtTotal - p->pageCtFile == 15)//memory full so must swap with file
       {
         struct page *victim;
         
         //Select a victim using a page replacement algorithm.
-        #if SELECTION=FIFO    
+        #ifdef FIFO    
         victim = queue[0];  //Remove the first item in the queue.
         
         int index;
@@ -187,20 +189,22 @@ trap(struct trapframe *tf)
         {
           queue[index] = queue[index+1];
         }
-        #elif SELECTION=RAND
+	#endif
+        #ifdef RAND
         int replaceindex;  //Index of page to swap out.
         
         randstate = randstate * 1664525 + 1013904223;  
         replaceindex = randstate % 15  //Generate a random number between 0 and 14.
         victim = randpages[replaceindex];
-        #else
-        victim = myProc()->tail->page;  //Remove the item on the bottom of the stack.
-        myProc()->tail->inuse = 0;  //Remove the node from the stack.
-        myProc()->tail = myProc()->tail->previousNode;  //The new tail is the next item on the bottom of the stack.
-        myProc()->tail->nextNode = NULL;
+	#endif
+        #ifdef LRU
+        victim = p->tail->page;  //Remove the item on the bottom of the stack.
+        p->tail->inuse = 0;  //Remove the node from the stack.
+        p->tail = p->tail->previousNode;  //The new tail is the next item on the bottom of the stack.
+        p->tail->nextNode = 0;
         #endif
         
-        swapOut(victim, char *inPg);
+        swapOut(victim);
         
         //mem = kalloc();
         
@@ -213,47 +217,49 @@ trap(struct trapframe *tf)
         
         uint n = PGROUNDDOWN(faultingAddress);
         
-        mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
+        mappages(p->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         
         //now add a page struct for this page, and update the proc statistics
         int i = 0;
         for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
         {
-          if(myProc()->pages[i]->swapped == -1)//found one at index i
+          if(p->pages[i]->swapped == -1)//found one at index i
           {
-            myProc()->pages[i]->swapped = 0;
-            myProc()->pages[i]->address = mem;
-            myProc()->freeInFile[i] = 0;
-            myProc()->pageCtMem++;
+            p->pages[i]->swapped = 0;
+            p->pages[i]->address =faultingAddress;
+            p->freeInFile[i] = 0;
+            p->pageCtFile++;
             
             break;
           }  
         }  
         
-        //Add myProc()->pages[i] to data structure.
-        #if SELECTION=FIFO    
-        queue[14] = myProc()->pages[i];  //Add myProc()->pages[i] to the end of the queue.
-        #elif SELECTION=RAND
-        randpages[replaceindex] = myProc()->pages[i];  //Add myProc()->pages[i] to randpages[replaceindex].
-        #else
+        //Add p->pages[i] to data structure.
+        #ifdef FIFO    
+        queue[14] = p->pages[i];  //Add p->pages[i] to the end of the queue.
+	#endif
+        #ifdef RAND
+        randpages[replaceindex] = p->pages[i];  //Add p->pages[i] to randpages[replaceindex].
+	#endif
+        #ifdef LRU
         int index;
         
         for (index = 0; index < 15; index++)  //Look for a node that is not in use.
         {
-          if(myProc()->stack[index]->inuse == 0)
+          if(p->stack[index]->inuse == 0)
           {
             break;
           }
         }
         
         struct node *newNode;
-        newNode = myProc()->stack[index];
-        newNode->nextNode = myProc()->head;  //Add the new node to the top of the stack.
-        newNode->previousNode = NULL;
-        newNode->page = myProc()->pages[i];  //Add myProc()->pages[i] to the new node.
+        newNode = p->stack[index];
+        newNode->nextNode = p->head;  //Add the new node to the top of the stack.
+        newNode->previousNode = 0;
+        newNode->page = p->pages[i];  //Add p->pages[i] to the new node.
         newNode->inuse = 1;
-        myProc()->head->previousNode = newNode;
-        myProc()->head = newNode;  //Make the new node the head.
+        p->head->previousNode = newNode;
+        p->head = newNode;  //Make the new node the head.
         #endif
       
         return;
@@ -266,38 +272,41 @@ trap(struct trapframe *tf)
         }
         memset(mem, 0, PGSIZE);*/
         uint n = PGROUNDDOWN(faultingAddress);
-        mappages(myproc()->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
+        mappages(p->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
         //now add a page struct for this page, and update the proc statistics
         int i = 0;
         for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
         {
-          if(myProc()->pages[i]->swapped == -1)//found one at index i
+          if(p->pages[i]->swapped == -1)//found one at index i
           {
-            myProc()->pages[i]->swapped = 0;
-            myProc()->pages[i]->address = mem;
-            myProc()->freeInFile[i] = 0;
-            myProc()->pageCtMem++;
+            p->pages[i]->swapped = 0;
+            p->pages[i]->address = faultingAddress;
+            p->freeInFile[i] = 0;
+            p->pageCtFile++;
             
             break;
           }
+	}
           
-        //Add myProc()->pages[i] to data structure.
-        #if SELECTION=FIFO    
-        queue[myProc()->size] = myProc()->pages[i];  //Add myProc()->pages[i] to the end of the queue.
-        myProc()->size++;
-        #elif SELECTION=RAND
-        randpages[myProc()->size] = myProc()->pages[i];  //Add myProc()->pages[i] to randpages[replaceindex].
-        myProc()->size++;
-        #else
+        //Add p->pages[i] to data structure.
+	#ifdef FIFO    
+        p->queue[p->size] = p->pages[i];  //Add p->pages[i] to the end of the queue.
+        p->size++;
+	#endif
+        #ifdef RAND
+        p->randpages[p->size] = p->pages[i];  //Add p->pages[i] to randpages[replaceindex].
+        p->size++;
+        #endif
+	#ifdef LRU
         struct node *newNode;
-        newNode = myProc()->stack[size];
-        newNode->nextNode = myProc()->head;  //Add the new node to the top of the stack.
-        newNode->previousNode = NULL;
-        newNode->page = myProc()->pages[i];  //Add myProc()->pages[i] to the new node.
+        newNode = p->stack[p->size];
+        newNode->nextNode = p->head;  //Add the new node to the top of the stack.
+        newNode->previousNode = 0;
+        newNode->page = p->pages[i];  //Add p->pages[i] to the new node.
         newNode->inuse = 1;
-        myProc()->head->previousNode = newNode;
-        myProc()->head = newNode;  //Make the new node the head.
-        size++
+        p->head->previousNode = newNode;
+        p->head = newNode;  //Make the new node the head.
+        p->size++;
         #endif
           
         }  
@@ -308,7 +317,7 @@ trap(struct trapframe *tf)
     cprintf("pid %d %s: trap %d err %d on cpu %d "
             "eip 0x%x addr 0x%x--kill proc\n",
             myproc()->pid, myproc()->name, tf->trapno,
-            tf->err, cpuid(), tf->eip, faultingAddress);
+            tf->err, cpuid(), tf->eip, rcr2());
     myproc()->killed = 1;
   }
 
@@ -327,4 +336,5 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
+}
 }
