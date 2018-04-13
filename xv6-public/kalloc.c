@@ -48,8 +48,10 @@ freerange(void *vstart, void *vend)
 {
   char *p;
   p = (char*)PGROUNDUP((uint)vstart);
+  //cprintf("p address: %d",(int)p);
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
     kfree(p);
+  //cprintf("[][][]freed[][][]");
 }
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
@@ -66,7 +68,7 @@ kfree(char *v)
 
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
-
+//cprintf("[][][]this farr in kfree");
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = (struct run*)v;

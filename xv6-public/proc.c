@@ -75,7 +75,6 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -101,7 +100,7 @@ found:
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-
+  p->size = 0;
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
@@ -111,13 +110,14 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-  
-  if (createSwapFile(p) != 0)
-  {
-    cprintf("Error creating swap file");
-    return 0;
-  }
-  
+//if(p->pid>1)
+//{
+  //if (createSwapFile(p) != 0)
+  //{
+    //cprintf("Error creating swap file");
+    //return 0;
+  //}
+//}  
   return p;
 }
 
@@ -128,7 +128,7 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-
+  //cprintf("about to allocproc");
   p = allocproc();
   
   initproc = p;
@@ -155,7 +155,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
+  //cprintf("\nINITTED\n");
   release(&ptable.lock);
 }
 
@@ -186,6 +186,7 @@ growproc(int n)
 int
 fork(void)
 {
+cprintf("[][][]trying to fork[][][]");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -216,8 +217,8 @@ fork(void)
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
   
-  //Copy swapFile from the parent process to the child process.
-  char *buffer[4096];
+  /*//Copy swapFile from the parent process to the child process.
+  char buffer[4096];
   
   int lastindex;
   
@@ -241,7 +242,7 @@ fork(void)
       return -1;
     }
     
-    if(curproc->freeInFile[i])
+    if(curproc->freeInFile[i] == 1)
     {
       np->freeInFile[i] = 1;
     }
@@ -254,12 +255,40 @@ fork(void)
   for(i = 0; i < 30; i++)
   {
     np->pages[i]->address = curproc->pages[i]->address;
-    np->pages[i]->file_index = curproc->pages[i]->address;
+    np->pages[i]->file_index = curproc->pages[i]->file_index;
     np->pages[i]->swapped = curproc->pages[i]->swapped;
   }
   
   np->pageCtTotal = curproc->pageCtTotal;
   np->pageCtFile = curproc->pageCtFile;
+  
+  	#ifdef FIFO    
+	for (i = 0; i < 15; i++)
+	{
+		np->queue[i] = curproc->queue[i];
+	}
+	
+	np->size = curproc->size;
+	#endif
+    #ifdef RAND
+	for (i = 0; i < 15; i++)
+	{
+		np->randpages[i] = curproc->randpages[i];
+	}
+	
+	np->size = curproc->size;
+    #endif
+	#ifdef LRU
+	for (i = 0; i < 15; i++)
+	{
+		np->stack[i] = curproc->stack[i];
+	}
+	
+	np->head = curproc->head;
+	np->tail = curproc->tail;
+	np->size = curproc->size;
+    #endif*/
+	createSwapFile(np);
 
   pid = np->pid;
 
@@ -384,25 +413,24 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  //int v = 0;
   c->proc = 0;
-  
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //cprintf("%d", v);
+    //v++;
       if(p->state != RUNNABLE)
         continue;
-
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+      // before jumping back to us
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
@@ -468,7 +496,7 @@ forkret(void)
     iinit(ROOTDEV);
     initlog(ROOTDEV);
   }
-
+  cprintf("][][][]yeilded[][][]");
   // Return to "caller", actually trapret (see allocproc).
 }
 
@@ -593,18 +621,23 @@ procdump(void)
   }
 }
 
-int * swapIn(struct page *pg){//swaps INTO physical
-	unsigned char * physMem = kalloc();
-	readFromSwapfile(myproc(), physMem, pg->file_index*4096,  4096);
+int swapIn(struct page *pg){//swaps INTO physical
+	cprintf("[][][]swapping in][][][");
+	char * physMem = kalloc();
+	readFromSwapFile(myproc(), physMem, pg->file_index*4096,  4096);
 	myproc()->freeInFile[pg->file_index] = 0;
 	pg->swapped = 0;
 	pg->file_index = 0;
-	mappages((pde_t *)myproc()->pgdir, (char*) pg->address, 4096, v2p(physMem), PTE_W | PTE_U);
-	return 0;
+	mappages((pde_t *)myproc()->pgdir, (char*) pg->address, 4096, V2P(physMem), PTE_W | PTE_U);
+	return 1;
 }
 
-int * swapOut(struct page * pg)//swaps OUT of physical
+int swapOut(struct page * pg)//swaps OUT of physical
 {
+	cprintf("[][][]swapping out[][][]");
+	pte_t *victimAddress;
+	victimAddress = walkpgdir(myproc()->pgdir, (char*)PGROUNDDOWN((uint)pg->address), 1);
+	char * victimPA = (char *)PTE_ADDR(*victimAddress);
 	int fileDest = 0;
 	for(fileDest = 0; fileDest < 15; fileDest ++)
 	{
@@ -612,10 +645,11 @@ int * swapOut(struct page * pg)//swaps OUT of physical
 		break;
 	}
 	pg->file_index = fileDest;//mark the destination index of the file
-	myProc->freeInFile[fileDest] = 1;
+	myproc()->freeInFile[fileDest] = 1;
 	pg->swapped = 1;
-	writeToSwapFile(myproc(), pg->address, fileDest*4096, 4096);//write the buffer into the file
+	writeToSwapFile(myproc(), victimPA, fileDest*4096, 4096);//write the buffer into the file
 	kfree((char *)pg->address);
-	pte_t *pte = walkpgdir((pde_t *)myProc()->pgdir, pg->address, 0);
+	pte_t *pte = walkpgdir((pde_t *)myproc()->pgdir, (char *)pg->address, 0);
 	*pte = *pte & !PTE_P & PTE_PG;
+	return 1;
 }

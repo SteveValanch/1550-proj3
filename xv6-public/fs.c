@@ -764,7 +764,7 @@ removeSwapFile(struct proc* p)
 int
 createSwapFile(struct proc* p)
 {
-
+	cprintf("[][][]tryingtoCreate[][][]");
 	char path[DIGITS];
 	memmove(path,"/.swap", 6);
 	itoa(p->pid, path+ 6);
@@ -783,7 +783,7 @@ createSwapFile(struct proc* p)
 	p->swapFile->readable = O_WRONLY;
 	p->swapFile->writable = O_RDWR;
     end_op();
-
+	cprintf("[][][]swapCreated[][][]");
     return 0;
 }
 
@@ -791,6 +791,7 @@ createSwapFile(struct proc* p)
 int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
+	cprintf("[][][]Writing[][][]");
 	p->swapFile->off = placeOnFile;
 
 	return filewrite(p->swapFile, buffer, size);
@@ -801,6 +802,7 @@ writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 int
 readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
+	cprintf("[][][]Reading[][][]");
 	p->swapFile->off = placeOnFile;
 
 	return fileread(p->swapFile, buffer,  size);

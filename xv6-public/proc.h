@@ -37,10 +37,10 @@ struct context {
 struct page {
   uint address;       //Virtual address of the page
   uint file_index;    //Offset into the file
-  int swapped = -1;   //1 if in file, 0 if in physical memory, -1 if uninitialized
+  int swapped;        //1 if in file, 0 if in physical memory, -1 if uninitialized
 };
 
-#if (SELECTION!=FIFO) && (SELECTION!=RAND) 
+#ifdef LRU
 struct node {
   struct node *nextNode;  //Node below in the stack.
   struct node *previousNode;  //Node above in the stack.
@@ -72,19 +72,18 @@ struct proc {
   int SwapIndex;               //this SwapIndex int stores the file index last paged in, for removal
   int pageCtTotal;             //under our simple test paging strategy which will be lifo
   int pageCtFile;              //Number of pages in the swap file
-  
+  int size;
   //Select which page replacement algorithm to use.
-  #if SELECTION==FIFO  //First in First Out
+  #ifdef FIFO  //First in First Out
   struct page *queue[15];  //Queue of pages to swap out.
-  int size = 0;
-  #elif SELECTION==RAND  //Random
+  #endif
+  #ifdef RAND  //Random
   struct page *randpages[15];  //Array of pages to be randomly selected.
-  int size = 0;
-  #else  //Least Recently Used
+  #endif
+  #ifdef LRU  //Least Recently Used
   struct node *stack[15];  //Array of nodes that represent a stack.
   struct node *head;  //Head of the linked list and the top of the stack.
   struct node *tail;  //Tail of the linked list and the bottom of the stack.
-  int size = 0;
   #endif
 };
 
