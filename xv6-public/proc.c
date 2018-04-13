@@ -648,8 +648,5 @@ int swapOut(struct page * pg)//swaps OUT of physical
 	myproc()->freeInFile[fileDest] = 1;
 	pg->swapped = 1;
 	writeToSwapFile(myproc(), victimPA, fileDest*4096, 4096);//write the buffer into the file
-	kfree((char *)pg->address);
-	pte_t *pte = walkpgdir((pde_t *)myproc()->pgdir, (char *)pg->address, 0);
-	*pte = *pte & !PTE_P & PTE_PG;
 	return 1;
 }
