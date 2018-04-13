@@ -629,24 +629,32 @@ int swapIn(struct page *pg){//swaps INTO physical
 	pg->swapped = 0;
 	pg->file_index = 0;
 	mappages((pde_t *)myproc()->pgdir, (char*) pg->address, 4096, V2P(physMem), PTE_W | PTE_U);
-	return 1;
+	return 0;
 }
 
 int swapOut(struct page * pg)//swaps OUT of physical
 {
 	cprintf("[][][]swapping out[][][]");
 	pte_t *victimAddress;
-	victimAddress = walkpgdir(myproc()->pgdir, (char*)PGROUNDDOWN((uint)pg->address), 1);
-	char * victimPA = (char *)PTE_ADDR(*victimAddress);
+	victimAddress = walkpgdir(myproc()->pgdir, (char*)pg->address, 0);
+	*victimAddress &= ~PTE_P;
+	*victimAddress |= PTE_PG;
+	//char * victimPA = (char *)PTE_ADDR(*victimAddress);
+	
 	int fileDest = 0;
+
 	for(fileDest = 0; fileDest < 15; fileDest ++)
 	{
-		if(myproc()->freeInFile[fileDest] == 0)//increment until an available page in the file is found
-		break;
+		if (myproc()->freeInFile[fileDest] == 0)//increment until an available page in the file is found
+		{
+			pg->file_index = fileDest;//mark the destination index of the file
+			pg->swapped = 1;
+			myproc()->freeInFile[fileDest] = 1;
+			writeToSwapFile(myproc(),(char*)(P2V(PTE_ADDR(*victimAddress))), fileDest*4096, 4096);//write the buffer into the file
+			myproc()->pageCtFile++;
+			break;
+		}
 	}
-	pg->file_index = fileDest;//mark the destination index of the file
-	myproc()->freeInFile[fileDest] = 1;
-	pg->swapped = 1;
-	writeToSwapFile(myproc(), victimPA, fileDest*4096, 4096);//write the buffer into the file
-	return 1;
+
+	return 0;
 }

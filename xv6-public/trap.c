@@ -108,40 +108,45 @@ trap(struct trapframe *tf)
      p = myproc();
    
 
-    if(p->pageCtTotal >= MAX_TOTAL_PAGES)
-      kill(p->pid);
-    //pte_t *pte;
-    char * mem = 0;
+	if(p->pageCtTotal >= MAX_TOTAL_PAGES)
+	{
+		p->killed = 1;
+		exit();
+	}
+      
+    char *mem = 0;
 	pte = walkpgdir(p->pgdir, (char *)faultingAddress, 0);
+	
     //mem = kalloc();
     //case 1: unallocated, <15 pages in memory: we know this is the case because 
     //there is no page struct with a matching address. response is to allocate
     //and return
-    if(!(*pte & PTE_PG))//in this case no entry so allocate
+    if (!(*pte & PTE_PG))  //This page has not been swapped out, so we allocate it.
     {
-	p->pageCtTotal++;
+		p->pageCtTotal++;
     }
 	
-	
-      if(p->pageCtTotal - p->pageCtFile >= 15)//memory full so must swap with file
-      {
+    if (p->pageCtTotal - p->pageCtFile >= 15) //memory full so must swap with file
+    {
         struct page *victim;
         cprintf("starting swapping");
+		
         //Select a victim using a page replacement algorithm.
         #ifdef FIFO    
         victim = queue[0];  //Remove the first item in the queue.
         
         int index;
+		
         for (index = 0; index < 14; index++)  //Shift the entire queue by one space to the left.
         {
           queue[index] = queue[index+1];
         }
-	#endif
+		#endif
         #ifdef RAND  
         randstate = randstate * 1664525 + 1013904223;  
         replaceindex = randstate % 15  //Generate a random number between 0 and 14.
         victim = randpages[replaceindex];
-	#endif
+		#endif
         #ifdef LRU
         victim = p->tail->page;  //Remove the item on the bottom of the stack.
         p->tail->inuse = 0;  //Remove the node from the stack.
@@ -151,87 +156,40 @@ trap(struct trapframe *tf)
         
         swapOut(victim);  //Call writeToSwapFile(), sending the victim memory to file
 
-	cprintf("Out of swapOut\n");
+		cprintf("Out of swapOut\n");
 
-	pte_t *vpte;  //Victim page table entry.
+		pte_t *vpte;  //Victim page table entry.
 
-	vpte = walkpgdir(p->pgdir, (char *)victim->address, 0);//generate the address of victim pte
+		vpte = walkpgdir(p->pgdir, (char*) victim->address, 0);  //generate the address of victim pte
         
-        mappages(p->pgdir, (char*) faultingAddress, PGSIZE, PTE_ADDR(vpte), PTE_P|PTE_W|PTE_U);	
-
-	kfree((char *)V2P(victim->address));
-
-	cprintf("Freed our victim\n");
-
-	int k;
-	for(k = 0; k < 30 ; k++)
+        mappages(p->pgdir, (char*) faultingAddress, PGSIZE, P2V(PTE_ADDR(*victimAddress)), PTE_P|PTE_W|PTE_U);  //Map the faulting address to the physical address of the victim.
+    }
+    else  //else allocate the space and map it bc mem not full
 	{
-		if (p->pages[k]->address)
-		{
-			if(p->pages[k]->swapped != 1)
-				cprintf("\n||||||||PROBLEM IN PAGE STRUCT||||| NOT UPDATED TO SWAPPED");
-			else{
-				swapIn(p->pages[k]);
-				break;
-			}
-		}
+		mem = kalloc();  //Allocate a new physical frame.
 		
-	}
+        if (mem == 0)
+		{
+			cprintf("lazyalloc out of memory\n");
+			return;//return if kalloc unsuccessful
+		}
 
-        //now add a page struct for this page, and update the proc statistics
-        int i = 0;
-        for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
-        {
-          if(p->pages[i]->swapped == -1)//found one at index i
-          {
-            p->pages[i]->swapped = 0;
-            p->pages[i]->address =faultingAddress;
-            p->freeInFile[i] = 0;
-            p->pageCtFile++;
-            
-            break;
-          }  
-        }  
-        
-
-      
-        return;
-      }
-      else{//else allocate the space and map it bc mem not full
-       mem = kalloc();
-        if(mem == 0){
-        cprintf("lazyalloc out of memory\n");
-        return;//return if kalloc unsuccessful
-        }
-        uint n = PGROUNDDOWN(faultingAddress);
-        mappages(p->pgdir, (char*)n, PGSIZE, V2P(mem), PTE_W|PTE_U);
-	cprintf("kallocing and mapping new page, VA: %x to tpe addr: %x\n", n, (uint)V2P(mem));
-	cprintf("\nkalloc and map done");
-        //now add a page struct for this page, and update the proc statistics
-        int i = 0;
-        for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
-        {
-          if(p->pages[i]->swapped == -1)//found one at index i
-          {
-            p->pages[i]->swapped = 0;
-            p->pages[i]->address = faultingAddress;
-            p->freeInFile[i] = 0;
-            p->pageCtTotal++;
-            
-            break;
-          }
-	}
-          
+        mappages(p->pgdir, (char*)faultingAddress, PGSIZE, V2P(mem), PTE_W|PTE_U);
+		
+		cprintf("kallocing and mapping new page, VA: %x to tpe addr: %x\n", n, (uint)V2P(mem));
+		cprintf("\nkalloc and map done");
+        //now add a page struct for this page, and update the proc statistics.
+		  
         //Add p->pages[i] to data structure.
-	#ifdef FIFO    
+		#ifdef FIFO    
         p->queue[p->size] = p->pages[i];  //Add p->pages[i] to the end of the queue.
         p->size++;
-	#endif
+		#endif
         #ifdef RAND
         p->randpages[p->size] = p->pages[i];  //Add p->pages[i] to randpages[replaceindex].
         p->size++;
         #endif
-	#ifdef LRU
+		#ifdef LRU
         struct node *newNode;
         newNode = p->stack[p->size];
         newNode->nextNode = p->head;  //Add the new node to the top of the stack.
@@ -244,44 +202,62 @@ trap(struct trapframe *tf)
         #endif
 	}
 
-    	if(!(*pte & PTE_PG))//in this case no entry so set the frame's contents to zero.
-    	{
-		memset(mem, 0, PGSIZE);	
-    	}
+    if(!(*pte & PTE_PG))  //in this case no entry so set the frame's contents to zero.
+    {
+		memset(mem, 0, PGSIZE);
+		
+		//now add a page struct for this newly allocated page, and update the proc statistics
+        int i = 0;
+        for(i = 0; i < MAX_TOTAL_PAGES; i++)//increment through array to find unused page struct
+        {
+			if(p->pages[i]->swapped == 0)//found one at index i
+			{
+				p->pages[i]->swapped = 0;
+				p->pages[i]->address = faultingAddress;
+				p->freeInFile[i] = 0;
+            
+				break;
+			}  
+        }  
+    }
 	else  //Otherwise, load the page from the swap file.
 	{
 		struct page *swap;
-	        int j = 0;
+	    int j = 0;
 
 		swap = 0;
 
-	        for(j = 0; j < 30; j++)
-	        {
-         		if(p->pages[j]->address == faultingAddress)
+	    for(j = 0; j < 30; j++)
+	    {
+        	if(p->pages[j]->address == faultingAddress)
 			{
           		    swap = p->pages[j];
         		    break;
 			}
-      		}
+      	}
 
-      		readFromSwapFile(p, mem, swap->file_index*4096,4096); 
+      	readFromSwapFile(p, mem, swap->file_index*4096,4096);
+		proc()->pageCtFile--;
+		
+		swap->file_index = 0;
+		swap->swapped = 0;
 
         //Add swap to data structure.
         #ifdef FIFO    
         queue[14] = swap;  //Add swap to the end of the queue.
-	#endif
+		#endif
         #ifdef RAND
         randpages[replaceindex] = swap;  //Add swap to randpages[replaceindex].
-	#endif
+		#endif
         #ifdef LRU
         int index;
         
         for (index = 0; index < 15; index++)  //Look for a node that is not in use.
         {
-          if(p->stack[index]->inuse == 0)
-          {
-            break;
-          }
+			if(p->stack[index]->inuse == 0)
+			{
+				break;
+			}
         }
         
         struct node *newNode;
@@ -294,7 +270,6 @@ trap(struct trapframe *tf)
         p->head = newNode;  //Make the new node the head.
         #endif
 	}	
-
   
     break;
     //this far means the page has been created, so pagefault indicates it is in file
